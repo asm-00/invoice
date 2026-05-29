@@ -7,9 +7,10 @@ import { AuthField } from "./AuthShell";
 
 type AuthFormProps = {
   mode: "signIn" | "signUp";
+  prefillEmail?: string;
 };
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, prefillEmail }: AuthFormProps) {
   const router = useRouter();
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         type="email"
         placeholder="name@company.com"
         autoComplete="email"
+        defaultValue={prefillEmail}
       />
 
       <AuthField

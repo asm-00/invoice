@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AuthForm } from "../_components/AuthForm";
 import { AuthShell } from "../_components/AuthShell";
 
-export const metadata: Metadata = {
-  title: "Open Ledger | Invoice Ledger",
-  description: "Create an Invoice Ledger workspace.",
-};
-
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const prefillEmail = searchParams.get("email") ?? undefined;
+
   return (
     <AuthShell
       eyebrow="Open Ledger"
@@ -21,7 +21,7 @@ export default function SignupPage() {
         </>
       }
     >
-      <AuthForm mode="signUp" />
+      <AuthForm mode="signUp" prefillEmail={prefillEmail} />
     </AuthShell>
   );
 }

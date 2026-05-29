@@ -74,6 +74,7 @@ export function AuthField({
   placeholder,
   autoComplete,
   required = true,
+  defaultValue,
 }: {
   label: string;
   id: string;
@@ -81,6 +82,7 @@ export function AuthField({
   placeholder: string;
   autoComplete?: string;
   required?: boolean;
+  defaultValue?: string;
 }) {
   return (
     <label className="auth-field" htmlFor={id}>
@@ -92,6 +94,7 @@ export function AuthField({
         placeholder={placeholder}
         autoComplete={autoComplete}
         required={required}
+        defaultValue={defaultValue}
         minLength={type === "password" ? 8 : undefined}
       />
     </label>

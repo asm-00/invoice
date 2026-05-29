@@ -1,21 +1,30 @@
 "use client";
 
-import { useMemo, useState, type ComponentType, type FormEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowDownRight,
   ArrowUpRight,
   CheckCircle2,
   ChevronDown,
-  Clock3,
+  ChevronUp,
   Columns3,
   FileSignature,
   FileText,
   Loader2,
+  Pencil,
   Plus,
   ReceiptText,
   Send,
+  Trash2,
   WalletCards,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,11 +39,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 type Invoice = Doc<"invoices">;
 type ViewFilter = "all" | "esign" | "overdue" | "paid";
+type ChartPeriod = "3m" | "30d" | "7d";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -49,71 +59,69 @@ const statusLabels: Record<Invoice["status"], string> = {
   paid: "Paid",
 };
 
-function statusVariant(
-  status: Invoice["status"],
-): "success" | "warning" | "outline" {
-  if (status === "paid") {
-    return "success";
-  }
+const allStatuses = ["draft", "sent", "overdue", "paid"] as const;
 
-  if (status === "overdue") {
-    return "warning";
+function effectiveStatus(invoice: Invoice): Invoice["status"] {
+  if (invoice.status === "sent") {
+    const today = new Date().toISOString().slice(0, 10);
+    if (invoice.dueDate < today) return "overdue";
   }
-
-  return "outline";
+  return invoice.status;
 }
 
 function statusBadgeClassName(status: Invoice["status"]) {
   if (status === "paid") {
     return "border-emerald-500/25 bg-emerald-50 text-emerald-700";
   }
-
   if (status === "overdue") {
     return "border-amber-500/25 bg-amber-50 text-amber-700";
   }
-
+  if (status === "sent") {
+    return "border-blue-400/25 bg-blue-50 text-blue-700";
+  }
   return "border-[#dfe6e3] bg-white text-[#4a5653]";
 }
 
 function signatureLabel(status: Invoice["status"]) {
-  if (status === "paid") {
-    return "Signed";
-  }
-
-  if (status === "overdue") {
-    return "Follow up";
-  }
-
-  if (status === "sent") {
-    return "Awaiting eSign";
-  }
-
+  if (status === "paid") return "Signed";
+  if (status === "overdue") return "Follow up";
+  if (status === "sent") return "Awaiting eSign";
   return "Not sent";
 }
 
-function actionLabel(status: Invoice["status"]) {
-  if (status === "draft") {
-    return "Send eSign";
-  }
+const periodMs: Record<ChartPeriod, number> = {
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+  "3m": 90 * 24 * 60 * 60 * 1000,
+};
 
-  if (status === "paid") {
-    return "Reopen";
-  }
-
-  return "Mark signed";
-}
+const periodLabels: Record<ChartPeriod, string> = {
+  "3m": "Last 3 months",
+  "30d": "Last 30 days",
+  "7d": "Last 7 days",
+};
 
 export function DashboardPage() {
   const invoices = useQuery(api.invoices.list);
   const stats = useQuery(api.invoices.stats);
-  const user = useQuery(api.users.current);
   const createInvoice = useMutation(api.invoices.create);
   const updateStatus = useMutation(api.invoices.updateStatus);
+  const updateInvoice = useMutation(api.invoices.update);
+  const removeInvoice = useMutation(api.invoices.remove);
+
   const [client, setClient] = useState("");
   const [amount, setAmount] = useState("1250");
+  const [dueDate, setDueDate] = useState("");
   const [pending, setPending] = useState(false);
   const [activeView, setActiveView] = useState<ViewFilter>("all");
   const [compactColumns, setCompactColumns] = useState(false);
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("3m");
+  const [editingId, setEditingId] = useState<Id<"invoices"> | null>(null);
+  const [editClient, setEditClient] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editPending, setEditPending] = useState(false);
+  const [deletingId, setDeletingId] = useState<Id<"invoices"> | null>(null);
 
   const isLoading = invoices === undefined || stats === undefined;
   const rows = useMemo(() => (invoices ?? []) as Invoice[], [invoices]);
@@ -122,27 +130,30 @@ export function DashboardPage() {
   const paidRate = stats?.invoiceCount
     ? Math.round((stats.paidCount / stats.invoiceCount) * 100)
     : 0;
-  const awaitingESign = rows.filter(
-    (invoice) => invoice.status === "sent" || invoice.status === "overdue",
+
+  const rowsWithEffectiveStatus = useMemo(
+    () => rows.map((inv) => ({ ...inv, _effectiveStatus: effectiveStatus(inv) })),
+    [rows],
+  );
+
+  const awaitingESign = rowsWithEffectiveStatus.filter(
+    (inv) => inv._effectiveStatus === "sent" || inv._effectiveStatus === "overdue",
   ).length;
 
   const filteredRows = useMemo(() => {
     if (activeView === "esign") {
-      return rows.filter(
-        (invoice) => invoice.status === "sent" || invoice.status === "overdue",
+      return rowsWithEffectiveStatus.filter(
+        (inv) => inv._effectiveStatus === "sent" || inv._effectiveStatus === "overdue",
       );
     }
-
     if (activeView === "overdue") {
-      return rows.filter((invoice) => invoice.status === "overdue");
+      return rowsWithEffectiveStatus.filter((inv) => inv._effectiveStatus === "overdue");
     }
-
     if (activeView === "paid") {
-      return rows.filter((invoice) => invoice.status === "paid");
+      return rowsWithEffectiveStatus.filter((inv) => inv._effectiveStatus === "paid");
     }
-
-    return rows;
-  }, [activeView, rows]);
+    return rowsWithEffectiveStatus;
+  }, [activeView, rowsWithEffectiveStatus]);
 
   const tabs: { id: ViewFilter; label: string; count: number }[] = [
     { id: "all", label: "Outline", count: rows.length },
@@ -152,14 +163,17 @@ export function DashboardPage() {
   ];
 
   const chart = useMemo(() => {
+    const now = Date.now();
+    const cutoff = now - periodMs[chartPeriod];
     const fallback = [920, 1380, 1040, 1900, 1320, 2460, 1580, 2780, 1730, 3200, 2050, 3650];
     const source = rows.length
       ? rows
           .slice()
           .reverse()
-          .map((invoice) => invoice.amount)
+          .filter((inv) => inv.createdAt >= cutoff)
+          .map((inv) => inv.amount)
       : fallback;
-    const values = source.slice(-12);
+    const values = source.length ? source.slice(-12) : fallback;
     const max = Math.max(...values, 1);
     const width = 880;
     const height = 210;
@@ -169,46 +183,76 @@ export function DashboardPage() {
     const points = values.map((value, index) => {
       const x = Math.round(index * step);
       const y = Math.round(bottom - (value / max) * (bottom - top));
-
       return { x, y, value };
     });
     const linePath = points
       .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
       .join(" ");
     const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
-
     return { areaPath, linePath, points, width, height };
-  }, [rows]);
+  }, [rows, chartPeriod]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-
     try {
       await createInvoice({
         client: client || "Acme Operations",
         amount: Number(amount) || 0,
         status: "draft",
+        dueDate: dueDate || undefined,
       });
       setClient("");
       setAmount("1250");
+      setDueDate("");
     } finally {
       setPending(false);
     }
   }
 
-  async function advanceInvoice(invoice: Invoice) {
-    const nextStatus =
-      invoice.status === "draft"
-        ? "sent"
-        : invoice.status === "paid"
-          ? "sent"
-          : "paid";
+  function startEdit(invoice: Invoice) {
+    setEditingId(invoice._id);
+    setEditClient(invoice.client);
+    setEditAmount(String(invoice.amount));
+    setEditDueDate(invoice.dueDate);
+  }
 
-    await updateStatus({
-      id: invoice._id,
-      status: nextStatus,
-    });
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(id: Id<"invoices">) {
+    setEditPending(true);
+    try {
+      await updateInvoice({
+        id,
+        client: editClient,
+        amount: Number(editAmount) || 0,
+        dueDate: editDueDate || undefined,
+      });
+      setEditingId(null);
+    } finally {
+      setEditPending(false);
+    }
+  }
+
+  function handleEditKeyDown(event: KeyboardEvent, id: Id<"invoices">) {
+    if (event.key === "Enter") saveEdit(id);
+    if (event.key === "Escape") cancelEdit();
+  }
+
+  async function handleDelete(id: Id<"invoices">) {
+    if (deletingId === id) {
+      await removeInvoice({ id });
+      setDeletingId(null);
+    } else {
+      setDeletingId(id);
+      setTimeout(() => setDeletingId((curr) => (curr === id ? null : curr)), 3000);
+    }
+  }
+
+  async function setInvoiceStatus(id: Id<"invoices">, status: Invoice["status"]) {
+    await updateStatus({ id, status });
   }
 
   return (
@@ -285,20 +329,20 @@ export function DashboardPage() {
               </p>
             </div>
             <div className="flex w-full rounded-md border border-[#dfe6e3] bg-[#eef4f2] p-1 sm:w-auto">
-              {["Last 3 months", "Last 30 days", "Last 7 days"].map(
-                (item, index) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className={cn(
-                      "min-h-8 flex-1 rounded px-3 text-xs font-semibold text-[#4a5653] transition-colors hover:bg-white hover:text-[#151515] sm:flex-none",
-                      index === 1 && "bg-[#111] text-white hover:bg-[#111] hover:text-white",
-                    )}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
+              {(["3m", "30d", "7d"] as ChartPeriod[]).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setChartPeriod(period)}
+                  className={cn(
+                    "min-h-8 flex-1 rounded px-3 text-xs font-semibold text-[#4a5653] transition-colors hover:bg-white hover:text-[#151515] sm:flex-none",
+                    chartPeriod === period &&
+                      "bg-[#111] text-white hover:bg-[#111] hover:text-white",
+                  )}
+                >
+                  {periodLabels[period]}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -361,7 +405,8 @@ export function DashboardPage() {
                   onClick={() => setActiveView(tab.id)}
                   className={cn(
                     "inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md px-3 text-xs font-semibold text-[#4a5653] transition-colors hover:bg-white hover:text-[#151515]",
-                    activeView === tab.id && "bg-[#111] text-white hover:bg-[#111] hover:text-white",
+                    activeView === tab.id &&
+                      "bg-[#111] text-white hover:bg-[#111] hover:text-white",
                   )}
                 >
                   {tab.label}
@@ -384,11 +429,15 @@ export function DashboardPage() {
                 variant="outline"
                 size="sm"
                 className="h-8 border-[#dfe6e3] bg-white text-xs text-[#151515] hover:bg-[#eef4f2] hover:text-[#151515]"
-                onClick={() => setCompactColumns((current) => !current)}
+                onClick={() => setCompactColumns((c) => !c)}
               >
                 <Columns3 />
                 {compactColumns ? "Show Details" : "Compact Columns"}
-                <ChevronDown />
+                {compactColumns ? (
+                  <ChevronUp className="size-3" />
+                ) : (
+                  <ChevronDown className="size-3" />
+                )}
               </Button>
               <Button
                 asChild
@@ -406,7 +455,7 @@ export function DashboardPage() {
           <form
             id="quick-create"
             onSubmit={handleCreate}
-            className="grid gap-3 border-y border-[#dfe6e3] bg-[#f7faf9] p-3 md:grid-cols-[minmax(0,1fr)_160px_auto]"
+            className="grid gap-3 border-y border-[#dfe6e3] bg-[#f7faf9] p-3 md:grid-cols-[minmax(0,1fr)_140px_160px_auto]"
           >
             <div className="min-w-0">
               <label htmlFor="client" className="sr-only">
@@ -415,7 +464,7 @@ export function DashboardPage() {
               <Input
                 id="client"
                 value={client}
-                onChange={(event) => setClient(event.target.value)}
+                onChange={(e) => setClient(e.target.value)}
                 placeholder="Client or eSign recipient"
                 className="h-9 border-[#cbd7d3] bg-[#eef4f2] text-[#15201e] placeholder:text-[#64736f]"
               />
@@ -428,8 +477,20 @@ export function DashboardPage() {
                 id="amount"
                 inputMode="decimal"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={(e) => setAmount(e.target.value)}
                 placeholder="1250"
+                className="h-9 border-[#cbd7d3] bg-[#eef4f2] text-[#15201e] placeholder:text-[#64736f]"
+              />
+            </div>
+            <div>
+              <label htmlFor="due-date" className="sr-only">
+                Due date
+              </label>
+              <Input
+                id="due-date"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 className="h-9 border-[#cbd7d3] bg-[#eef4f2] text-[#15201e] placeholder:text-[#64736f]"
               />
             </div>
@@ -463,79 +524,202 @@ export function DashboardPage() {
                   <TableHead className="text-[#151515]">Invoice</TableHead>
                   <TableHead className="text-[#151515]">Client</TableHead>
                   {!compactColumns && (
-                    <TableHead className="text-[#151515]">Workflow</TableHead>
+                    <TableHead className="text-[#151515]">eSign</TableHead>
                   )}
                   <TableHead className="text-[#151515]">Status</TableHead>
-                  <TableHead className="text-[#151515]">eSign</TableHead>
                   {!compactColumns && (
                     <TableHead className="text-[#151515]">Due</TableHead>
                   )}
                   <TableHead className="text-right text-[#151515]">Amount</TableHead>
-                  <TableHead className="w-10 text-right text-[#151515]">
-                    <span className="sr-only">Action</span>
+                  <TableHead className="w-32 text-right text-[#151515]">
+                    <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRows.map((invoice) => (
-                  <TableRow
-                    key={invoice._id}
-                    className="border-[#dfe6e3] hover:bg-[#f7faf9]"
-                  >
-                    <TableCell className="px-4">
-                      <input
-                        type="checkbox"
-                        className="size-3.5 rounded border-[#cbd7d3] bg-white accent-[#08dfc2]"
-                        aria-label={`Select ${invoice.invoiceNumber}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-semibold text-[#151515]">
-                        {invoice.invoiceNumber}
-                      </div>
-                      <div className="text-[11px] text-[#64736f]">
-                        Created {new Date(invoice.createdAt).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-[#4a5653]">{invoice.client}</TableCell>
-                    {!compactColumns && (
+                {filteredRows.map((invoice) => {
+                  const dispStatus = invoice._effectiveStatus;
+                  const isEditing = editingId === invoice._id;
+                  const isDeleting = deletingId === invoice._id;
+
+                  if (isEditing) {
+                    return (
+                      <TableRow
+                        key={invoice._id}
+                        className="border-[#dfe6e3] bg-[#f7faf9]"
+                      >
+                        <TableCell className="px-4" />
+                        <TableCell>
+                          <div className="font-semibold text-[#151515]">
+                            {invoice.invoiceNumber}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={editClient}
+                            onChange={(e) => setEditClient(e.target.value)}
+                            onKeyDown={(e) => handleEditKeyDown(e, invoice._id)}
+                            className="h-7 w-36 border-[#cbd7d3] bg-white text-xs"
+                            autoFocus
+                          />
+                        </TableCell>
+                        {!compactColumns && (
+                          <TableCell className="text-[#4a5653]">
+                            {signatureLabel(dispStatus)}
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <Badge className={statusBadgeClassName(dispStatus)}>
+                            {statusLabels[dispStatus]}
+                          </Badge>
+                        </TableCell>
+                        {!compactColumns && (
+                          <TableCell>
+                            <Input
+                              type="date"
+                              value={editDueDate}
+                              onChange={(e) => setEditDueDate(e.target.value)}
+                              onKeyDown={(e) => handleEditKeyDown(e, invoice._id)}
+                              className="h-7 w-32 border-[#cbd7d3] bg-white text-xs"
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right">
+                          <Input
+                            inputMode="decimal"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            onKeyDown={(e) => handleEditKeyDown(e, invoice._id)}
+                            className="h-7 w-20 border-[#cbd7d3] bg-white text-right text-xs"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              className="h-7 px-2 text-[10px] bg-[#08dfc2] text-[#001f1b] hover:bg-[#111] hover:text-white"
+                              onClick={() => saveEdit(invoice._id)}
+                              disabled={editPending}
+                            >
+                              {editPending ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[10px] text-[#4a5653]"
+                              onClick={cancelEdit}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  return (
+                    <TableRow
+                      key={invoice._id}
+                      className="border-[#dfe6e3] hover:bg-[#f7faf9]"
+                    >
+                      <TableCell className="px-4">
+                        <input
+                          type="checkbox"
+                          className="size-3.5 rounded border-[#cbd7d3] bg-white accent-[#08dfc2]"
+                          aria-label={`Select ${invoice.invoiceNumber}`}
+                        />
+                      </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-[#dfe6e3] bg-white text-[#4a5653]">
-                          Invoice approval
-                        </Badge>
+                        <div className="font-semibold text-[#151515]">
+                          {invoice.invoiceNumber}
+                        </div>
+                        <div className="text-[11px] text-[#64736f]">
+                          {new Date(invoice.createdAt).toLocaleDateString()}
+                        </div>
                       </TableCell>
-                    )}
-                    <TableCell>
-                      <Badge
-                        variant={statusVariant(invoice.status)}
-                        className={statusBadgeClassName(invoice.status)}
-                      >
-                        {statusLabels[invoice.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-[#4a5653]">
-                      {signatureLabel(invoice.status)}
-                    </TableCell>
-                    {!compactColumns && (
-                      <TableCell className="text-[#64736f]">
-                        {invoice.dueDate}
+                      <TableCell className="text-[#4a5653]">{invoice.client}</TableCell>
+                      {!compactColumns && (
+                        <TableCell className="text-[#4a5653]">
+                          {signatureLabel(dispStatus)}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <select
+                          value={dispStatus}
+                          onChange={(e) =>
+                            setInvoiceStatus(
+                              invoice._id,
+                              e.target.value as Invoice["status"],
+                            )
+                          }
+                          className={cn(
+                            "cursor-pointer appearance-none rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            statusBadgeClassName(dispStatus),
+                          )}
+                          aria-label={`Status for ${invoice.invoiceNumber}`}
+                        >
+                          {allStatuses.map((s) => (
+                            <option key={s} value={s}>
+                              {statusLabels[s]}
+                            </option>
+                          ))}
+                        </select>
                       </TableCell>
-                    )}
-                    <TableCell className="text-right font-semibold text-[#151515]">
-                      {money.format(invoice.amount)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-xs text-[#4a5653] hover:bg-[#ccfbf2] hover:text-[#052b26]"
-                        onClick={() => advanceInvoice(invoice)}
-                      >
-                        {actionLabel(invoice.status)}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      {!compactColumns && (
+                        <TableCell
+                          className={cn(
+                            "text-[#64736f]",
+                            dispStatus === "overdue" && "font-semibold text-amber-600",
+                          )}
+                        >
+                          {invoice.dueDate}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right font-semibold text-[#151515]">
+                        {money.format(invoice.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-[#4a5653] hover:bg-[#eef4f2] hover:text-[#151515]"
+                            onClick={() => startEdit(invoice)}
+                            aria-label={`Edit ${invoice.invoiceNumber}`}
+                          >
+                            <Pencil className="size-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-7 px-2 text-[10px]",
+                              isDeleting
+                                ? "bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+                                : "text-[#4a5653] hover:bg-rose-50 hover:text-rose-600",
+                            )}
+                            onClick={() => handleDelete(invoice._id)}
+                            aria-label={
+                              isDeleting
+                                ? `Confirm delete ${invoice.invoiceNumber}`
+                                : `Delete ${invoice.invoiceNumber}`
+                            }
+                          >
+                            {isDeleting ? (
+                              "Confirm?"
+                            ) : (
+                              <Trash2 className="size-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (

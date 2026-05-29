@@ -1,3 +1,5 @@
+"use client";
+
 const navGroups = [
   {
     label: "Products",
@@ -171,10 +173,20 @@ function Hero() {
         receivables in one calm workspace built for finance teams.
       </p>
       <div className="hero-actions">
-        <div className="hero-form" aria-label="Request access">
-          <input type="email" placeholder="Enter your work email" />
-          <button type="button">Submit</button>
-        </div>
+        <form
+          className="hero-form"
+          aria-label="Request access"
+          action="/signup"
+          method="get"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement)?.value;
+            window.location.href = `/signup${email ? `?email=${encodeURIComponent(email)}` : ""}`;
+          }}
+        >
+          <input type="email" name="email" placeholder="Enter your work email" required />
+          <button type="submit">Get started</button>
+        </form>
         <a href="#demo" className="demo-link">
           Request Demo
         </a>
@@ -335,10 +347,18 @@ function FooterCta() {
     <footer className="footer-cta" id="demo">
       <div>
         <h2>Ready when you are.</h2>
-        <div className="hero-form dark-form" aria-label="Request a demo">
-          <input type="email" placeholder="Enter your work email" />
-          <button type="button">Submit</button>
-        </div>
+        <form
+          className="hero-form dark-form"
+          aria-label="Request a demo"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement)?.value;
+            window.location.href = `/signup${email ? `?email=${encodeURIComponent(email)}` : ""}`;
+          }}
+        >
+          <input type="email" name="email" placeholder="Enter your work email" required />
+          <button type="submit">Get started</button>
+        </form>
         <p>
           A focused invoice operations workspace for teams that need less
           spreadsheet cleanup and clearer receivables review.
