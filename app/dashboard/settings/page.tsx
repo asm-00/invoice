@@ -221,7 +221,7 @@ export default function SettingsPage() {
             <div className="max-w-lg space-y-6">
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Appearance</h2>
-                <p className="mt-1 text-xs text-slate-500">Customize how Invoice Ledger looks.</p>
+                <p className="mt-1 text-xs text-slate-500">Customize how Payvio looks.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {[

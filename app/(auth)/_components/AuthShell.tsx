@@ -18,9 +18,9 @@ export function AuthShell({
 }: AuthShellProps) {
   return (
     <main className="auth-page">
-      <section className="auth-brand-panel" aria-label="Invoice Ledger overview">
-        <Link href="/" className="auth-wordmark" aria-label="Invoice Ledger home">
-          Invoice Ledger
+      <section className="auth-brand-panel" aria-label="Payvio overview">
+        <Link href="/" className="auth-wordmark" aria-label="Payvio home">
+          Payvio
         </Link>
 
         <div className="auth-preview">
@@ -53,8 +53,8 @@ export function AuthShell({
 
       <section className="auth-form-panel" aria-labelledby="auth-title">
         <div className="auth-card">
-          <Link href="/" className="auth-mobile-wordmark" aria-label="Invoice Ledger home">
-            Invoice Ledger
+          <Link href="/" className="auth-mobile-wordmark" aria-label="Payvio home">
+            Payvio
           </Link>
           <p className="auth-eyebrow">{eyebrow}</p>
           <h1 id="auth-title">{title}</h1>

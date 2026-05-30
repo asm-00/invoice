@@ -84,11 +84,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               className="flex items-center gap-2.5 min-w-0"
               onClick={() => setMobileNavOpen(false)}
             >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
-                <ReceiptText className="size-3.5 text-white" />
-              </span>
+              <img
+                src="/payvio-logo.svg"
+                alt="Payvio"
+                className="size-8 shrink-0 rounded-xl shadow-lg shadow-indigo-500/30"
+              />
               <span className="truncate text-sm font-bold tracking-tight text-white">
-                Invoice Ledger
+                Payvio
               </span>
             </Link>
             <button
@@ -265,7 +267,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <ReceiptText className="size-4" />
             </button>
             <span className="text-sm font-bold tracking-tight text-slate-800">
-              Invoice Ledger
+              Payvio
             </span>
             <div className="size-9" />
           </div>
