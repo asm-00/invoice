@@ -1,5 +1,3 @@
-"use client";
-
 const navGroups = [
   {
     label: "Products",
@@ -90,8 +88,8 @@ export default function Home() {
 function Header() {
   return (
     <header className="site-header">
-      <a href="#" className="wordmark" aria-label="Payvio home">
-        Payvio
+      <a href="#" className="wordmark" aria-label="Invoice Ledger home">
+        Invoice Ledger
       </a>
 
       <nav className="desktop-nav" aria-label="Main navigation">
@@ -165,7 +163,7 @@ function Hero() {
   return (
     <section className="hero-section" aria-labelledby="hero-title">
       <a href="#close" className="news-pill">
-        NEW: Payvio Close - Receivables review workspace
+        NEW: Invoice Ledger Close - Receivables review workspace
       </a>
       <h1 id="hero-title">Invoice operations you will not outgrow.</h1>
       <p className="hero-copy">
@@ -173,26 +171,16 @@ function Hero() {
         receivables in one calm workspace built for finance teams.
       </p>
       <div className="hero-actions">
-        <form
-          className="hero-form"
-          aria-label="Request access"
-          action="/signup"
-          method="get"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement)?.value;
-            window.location.href = `/signup${email ? `?email=${encodeURIComponent(email)}` : ""}`;
-          }}
-        >
-          <input type="email" name="email" placeholder="Enter your work email" required />
-          <button type="submit">Get started</button>
-        </form>
+        <div className="hero-form" aria-label="Request access">
+          <input type="email" placeholder="Enter your work email" />
+          <button type="button">Submit</button>
+        </div>
         <a href="#demo" className="demo-link">
           Request Demo
         </a>
       </div>
       <p className="fine-print">
-        Payvio is workflow software for invoice operations. Accounting,
+        Invoice Ledger is workflow software for invoice operations. Accounting,
         banking, and payment connections remain with your connected providers.
       </p>
     </section>
@@ -201,7 +189,7 @@ function Hero() {
 
 function ProductStage() {
   return (
-    <section className="product-stage" aria-label="Payvio product preview">
+    <section className="product-stage" aria-label="Invoice Ledger product preview">
       <div className="workflow-rail" aria-hidden="true">
         {workflowCards.map(([title, detail]) => (
           <article className="workflow-card" key={title}>
@@ -310,7 +298,7 @@ function FeatureSection() {
       <div className="section-heading">
         <h2 id="products-title">One platform for invoice operations</h2>
         <p>
-          The work around invoicing is where teams lose time. Payvio
+          The work around invoicing is where teams lose time. Invoice Ledger
           keeps creation, approval, collections, and close in the same flow.
         </p>
         <a href="/signup" className="mint-button">
@@ -347,18 +335,10 @@ function FooterCta() {
     <footer className="footer-cta" id="demo">
       <div>
         <h2>Ready when you are.</h2>
-        <form
-          className="hero-form dark-form"
-          aria-label="Request a demo"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement)?.value;
-            window.location.href = `/signup${email ? `?email=${encodeURIComponent(email)}` : ""}`;
-          }}
-        >
-          <input type="email" name="email" placeholder="Enter your work email" required />
-          <button type="submit">Get started</button>
-        </form>
+        <div className="hero-form dark-form" aria-label="Request a demo">
+          <input type="email" placeholder="Enter your work email" />
+          <button type="button">Submit</button>
+        </div>
         <p>
           A focused invoice operations workspace for teams that need less
           spreadsheet cleanup and clearer receivables review.
